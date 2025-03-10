@@ -1,6 +1,5 @@
 ## Single-cell RNAseq of mouse hippocampus
 
-
-Includes Quality Control
+Includes Quality Control.
 Analysis temporarily paused. 
 
