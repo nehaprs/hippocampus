@@ -7,8 +7,12 @@ library(readxl)
 library(clustree)
 library(GPTCelltype)
 library(openai)
+library(Seurat)
 
-scdata = ReadMtx(mtx = "~/BINF/yushi scrnaseq/hippocampus/sb output/LRP6_clean_RSEC_MolsPerCell_MEX/matrix.mtx.gz",
+library(SingleR)
+library(celldex)
+
+scdata =Seuratscdata = ReadMtx(mtx = "~/BINF/yushi scrnaseq/hippocampus/sb output/LRP6_clean_RSEC_MolsPerCell_MEX/matrix.mtx.gz",
                    cells = "~/BINF/yushi scrnaseq/hippocampus/sb output/LRP6_clean_RSEC_MolsPerCell_MEX/barcodes.tsv.gz",
                    features = "~/BINF/yushi scrnaseq/hippocampus/sb output/LRP6_clean_RSEC_MolsPerCell_MEX/features.tsv.gz")
 
@@ -27,7 +31,88 @@ VlnPlot(hippo, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent
 nrow(hippo@meta.data)
 #2167 cells
 
-hippo = subset(hippo, subset = percent.mt < 5)
+hippo = subset(hippo, subset = percent.mt < 25)
 nrow(hippo@meta.data)
-#167 cells
+#167 cells if mt = 5%
 #low quality. 
+#1886 in mt = 25
+
+
+
+VlnPlot(hippo, features = c("nFeature_RNA", "nCount_RNA", "percent.mt", "percent.ribo"), ncol = 4)
+
+hippo <- subset(hippo, subset = nFeature_RNA > 1000 & nFeature_RNA < 10000)
+nrow(hippo@meta.data)
+#1861
+
+hippo <- NormalizeData(hippo)
+
+hippo  <- FindVariableFeatures(hippo , selection.method = "vst", nfeatures = 2000)
+
+top10 = head(VariableFeatures(hippo), 10)
+#sacling
+all.genes = row.names(hippo)
+hippo = ScaleData(hippo, features = all.genes)
+
+#pca
+hippo = RunPCA(hippo, features = VariableFeatures(object = hippo))
+heat = DimHeatmap(hippo, dims = 1:20, cells = 500, balanced = TRUE)
+elbow = ElbowPlot(hippo)
+#clear elbow at 6
+
+hippo = FindNeighbors(hippo, dims = 1:6)
+resolution.range <- seq(from = 0, to = 1, by = 0.1)
+
+
+
+# Loop over each resolution
+for (res in resolution.range) {
+  # Perform clustering with the current resolution
+  hippo<- FindClusters(hippo, resolution = res)
+  
+  # Find all markers for the clusters at this resolution
+  hippo.markers <- FindAllMarkers(hippo, only.pos = TRUE)
+  
+  # Define the file name for saving the markers
+  file_name <- paste0("markers_resolution_", res, ".xlsx")
+  
+  # Save the markers as an Excel file
+  write_xlsx(hippo.markers, file_name)
+  
+  # Print a message to confirm completion for each resolution
+  print(paste("Markers for resolution", res, "saved to", file_name))
+}
+
+
+xlsx_file = list.files(pattern = "\\.xlsx$")
+
+for (file in xlsx_file){
+  df = read_xlsx(file)
+  dff = df[df$avg_log2FC > 1,]
+  file_new = paste0("filt",file)
+  write_xlsx(dff, file_new)
+}
+
+clustr = clustree(hippo)
+#res = 0.6
+hippo = RunUMAP(hippo, dims = 1:6)
+DimPlot(hippo, reduction = "umap", label = TRUE,
+        group.by = "RNA_snn_res.0.5")
+
+saveRDS(hippo,"hippo.rds")
+#annotation using singleR
+
+hippo = readRDS("hippo.rds")
+
+ref = celldex::MouseRNAseqData()
+View(as.data.frame(colData(ref)))
+
+hippo.count = GetAssayData(hippo, layer = "counts")
+
+pred = SingleR(test = hippo.count,
+               ref = ref,
+               labels = ref$label.main)
+
+hippo$singler.labels = pred$labels[match(rownames(hippo@meta.data), rownames(pred))]
+DimPlot(hippo, reduction = "umap", group.by = "singler.labels",label = TRUE, pt.size = 0.5,repel = TRUE)+ NoLegend()
+saveRDS(hippo,"hippo_anntd.rds")
