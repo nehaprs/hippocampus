@@ -8,7 +8,6 @@ library(readxl)
 library(clustree)
 library(GPTCelltype)
 library(openai)
-library(Seurat)
 library(harmony)
 
 library(SingleR)
