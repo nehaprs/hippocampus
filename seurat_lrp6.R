@@ -226,3 +226,9 @@ pred = SingleR(test = hippo.count,
 hippo$singler.labels = pred$labels[match(rownames(hippo@meta.data), rownames(pred))]
 DimPlot(hippo, reduction = "umap", group.by = "singler.labels",label = TRUE, pt.size = 0.5,repel = TRUE)+ NoLegend()
 saveRDS(hippo,"hippo_wt.rds")
+
+#make WT more compact 
+
+hippo <- readRDS("C:/Users/neha/Documents/BINF/yushi scrnaseq/hippocampus/seurat output/WT/hippo_wt.rds")
+p = DimPlot(hippo, reduction = "umap", group.by = "singler.labels",label = TRUE, label.size = 5, pt.size = 0.5,repel = TRUE)+ NoLegend()
+p + coord_fixed(ratio = 0.8) + ggtitle("Wild Type Cells")
